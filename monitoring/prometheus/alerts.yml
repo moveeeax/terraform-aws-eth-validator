@@ -1,0 +1,128 @@
+# Four alerts. Not forty.
+#
+# These are the conditions that reliably precede an incident on a single
+# validator pair: the validator stops doing its job, the beacon node loses its
+# view of the network, the disk fills, or the clock drifts far enough that
+# attestations land in the wrong slot. Everything else is a dashboard.
+#
+# Metric names follow Lighthouse and Geth. If you run a different client pair,
+# the expressions change but the four questions do not.
+#
+# Validate before shipping:
+#   promtool check rules monitoring/prometheus/alerts.yml
+
+groups:
+  - name: eth-validator
+    interval: 1m
+    rules:
+      # 1. Missed attestations.
+      #
+      # A validator that is up but not attesting is the failure that costs
+      # money quietly. The alert fires on the *rate* of hits, not on a single
+      # miss: one miss per epoch happens, ten in a row does not.
+      - alert: ValidatorMissedAttestations
+        expr: |
+          increase(validator_monitor_prev_epoch_attestation_hits_total[30m])
+            /
+          clamp_min(
+            increase(validator_monitor_prev_epoch_attestation_hits_total[30m])
+              + increase(validator_monitor_prev_epoch_attestation_misses_total[30m]),
+            1
+          ) < 0.9
+        for: 15m
+        labels:
+          severity: critical
+          runbook: missed-attestations
+        annotations:
+          summary: "Attestation effectiveness below 90% on {{ $labels.instance }}"
+          description: >-
+            Fewer than 90% of the last 30 minutes of attestation duties were
+            included. Check the beacon node first, then the validator client
+            logs, then peer count. Do not restart the validator client on a
+            second host while investigating.
+
+      # 2. Peer count collapse.
+      #
+      # Low peers on the consensus layer means the node is about to start
+      # missing head votes, usually a few minutes before the attestation
+      # alert would fire.
+      - alert: BeaconPeerCountCollapse
+        expr: libp2p_peers < 20
+        for: 10m
+        labels:
+          severity: warning
+          runbook: peer-count
+        annotations:
+          summary: "Consensus peer count {{ $value }} on {{ $labels.instance }}"
+          description: >-
+            The beacon node has fewer than 20 peers. Check that the consensus
+            p2p port is still reachable from the internet and that the security
+            group has not been narrowed.
+
+      - alert: ExecutionPeerCountCollapse
+        expr: p2p_peers < 10
+        for: 10m
+        labels:
+          severity: warning
+          runbook: peer-count
+        annotations:
+          summary: "Execution peer count {{ $value }} on {{ $labels.instance }}"
+          description: >-
+            The execution client has fewer than 10 peers. The consensus layer
+            will follow it down.
+
+      # 3. Disk fill rate.
+      #
+      # Free space is the wrong signal: 200 GB free is comfortable until it is
+      # four hours. predict_linear answers the question the operator actually
+      # has, which is how long they have.
+      - alert: ChaindataDiskFillingUp
+        expr: |
+          predict_linear(node_filesystem_avail_bytes{mountpoint="/var/lib/eth/chaindata"}[6h], 48 * 3600) < 0
+        for: 30m
+        labels:
+          severity: warning
+          runbook: disk-fill
+        annotations:
+          summary: "Chaindata volume on {{ $labels.instance }} fills within 48h at the current rate"
+          description: >-
+            Grow the EBS volume and extend the filesystem, or prune the
+            execution client. A full chaindata volume takes the beacon node
+            down, and the validator with it.
+
+      - alert: ChaindataDiskCritical
+        expr: |
+          node_filesystem_avail_bytes{mountpoint="/var/lib/eth/chaindata"}
+            / node_filesystem_size_bytes{mountpoint="/var/lib/eth/chaindata"} < 0.07
+        for: 5m
+        labels:
+          severity: critical
+          runbook: disk-fill
+        annotations:
+          summary: "Chaindata volume below 7% free on {{ $labels.instance }}"
+
+      # 4. Clock skew.
+      #
+      # Attestations are slot-bound. A host that is a second out publishes into
+      # the wrong slot and the attestation is not included, with no error
+      # anywhere in the validator logs to explain it.
+      - alert: ClockSkew
+        expr: abs(node_timex_offset_seconds) > 0.35
+        for: 5m
+        labels:
+          severity: critical
+          runbook: clock-skew
+        annotations:
+          summary: "Clock offset {{ $value }}s on {{ $labels.instance }}"
+          description: >-
+            NTP offset above 350ms. Attestations from this host are landing in
+            the wrong slot. Check chronyd or systemd-timesyncd.
+
+      - alert: ClockNotSynchronised
+        expr: node_timex_sync_status == 0
+        for: 15m
+        labels:
+          severity: warning
+          runbook: clock-skew
+        annotations:
+          summary: "No time synchronisation on {{ $labels.instance }}"

@@ -1,0 +1,48 @@
+# Scrape configuration for one validator pair.
+#
+# Fill the targets from the module's prometheus_scrape_targets output:
+#
+#   terraform output -json prometheus_scrape_targets
+#
+# Every address below is a placeholder. The metrics ports are only reachable
+# from the CIDRs in var.monitoring_cidr_blocks, so this file belongs on a host
+# inside one of them.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+rule_files:
+  - alerts.yml
+
+scrape_configs:
+  - job_name: eth-execution
+    static_configs:
+      - targets: ["REPLACE_ME_BEACON_PRIVATE_IP:6060"]
+        labels:
+          eth_network: holesky
+          eth_role: execution
+
+  - job_name: eth-beacon
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["REPLACE_ME_BEACON_PRIVATE_IP:5054"]
+        labels:
+          eth_network: holesky
+          eth_role: beacon
+
+  - job_name: eth-validator
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["REPLACE_ME_VALIDATOR_PRIVATE_IP:5064"]
+        labels:
+          eth_network: holesky
+          eth_role: validator
+
+  - job_name: node
+    static_configs:
+      - targets:
+          - "REPLACE_ME_BEACON_PRIVATE_IP:9100"
+          - "REPLACE_ME_VALIDATOR_PRIVATE_IP:9100"
+        labels:
+          eth_network: holesky
