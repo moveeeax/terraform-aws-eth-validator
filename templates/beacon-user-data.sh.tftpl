@@ -1,0 +1,84 @@
+#!/usr/bin/env bash
+# Rendered by terraform-aws-eth-validator. Do not edit on the host.
+#
+# This script prepares the machine. It does not download client binaries.
+# Fetching an execution client over the internet at first boot, unverified,
+# from a machine that will hold consensus state, is a supply-chain problem
+# dressed up as convenience. Install pinned, checksum-verified binaries with
+# your configuration-management tool; the versions this deployment expects are
+# written to /etc/eth-validator/versions.env below.
+set -euo pipefail
+
+install -d -m 0755 /etc/eth-validator
+install -d -m 0755 /var/lib/eth
+install -d -m 0755 /var/log/eth
+
+if ! id -u ethnode >/dev/null 2>&1; then
+  useradd --system --shell /usr/sbin/nologin --home-dir /var/lib/eth ethnode
+fi
+
+cat >/etc/eth-validator/versions.env <<'EOF'
+ETH_NETWORK=${network}
+EXECUTION_CLIENT=${execution_client}
+EXECUTION_CLIENT_VERSION=${execution_client_version}
+CONSENSUS_CLIENT=${consensus_client}
+CONSENSUS_CLIENT_VERSION=${consensus_client_version}
+EL_P2P_PORT=${el_p2p_port}
+CL_P2P_PORT=${cl_p2p_port}
+BEACON_API_PORT=${beacon_api_port}
+EXECUTION_METRICS_PORT=${metrics_ports.execution}
+BEACON_METRICS_PORT=${metrics_ports.beacon}
+NODE_EXPORTER_PORT=${metrics_ports.node}
+CHAINDATA_MOUNT=${chaindata_mount}
+EOF
+chmod 0644 /etc/eth-validator/versions.env
+
+# --- chaindata volume --------------------------------------------------------
+# Formatted only if it has no filesystem. A restore that reattaches an existing
+# chaindata volume must never be reformatted by a reboot.
+DEVICE="${chaindata_device}"
+for _ in $(seq 1 30); do
+  # Written as plain ifs rather than `[ ... ] && break`, which under `set -e`
+  # aborts the whole script on the first iteration where the device is not
+  # there yet — which is every normal boot.
+  if [ -b "$${DEVICE}" ]; then
+    break
+  fi
+  # NVMe instance families expose the volume under a different name.
+  if [ -b /dev/nvme1n1 ]; then
+    DEVICE=/dev/nvme1n1
+    break
+  fi
+  sleep 2
+done
+
+if [ -b "$${DEVICE}" ]; then
+  if ! blkid "$${DEVICE}" >/dev/null 2>&1; then
+    mkfs.ext4 -L chaindata "$${DEVICE}"
+  fi
+  install -d -m 0750 "${chaindata_mount}"
+  grep -q "LABEL=chaindata" /etc/fstab || \
+    echo "LABEL=chaindata ${chaindata_mount} ext4 defaults,noatime,nofail 0 2" >>/etc/fstab
+  mount -a
+  chown ethnode:ethnode "${chaindata_mount}"
+else
+  echo "chaindata device not present after 60s; leaving it unmounted rather than guessing" >&2
+fi
+
+# --- host hardening ----------------------------------------------------------
+# Access is Session Manager. Nothing in this module opens port 22, so password
+# and key authentication are both turned off rather than left as a fallback
+# that somebody later adds a security-group rule for.
+if [ -d /etc/ssh/sshd_config.d ]; then
+  cat >/etc/ssh/sshd_config.d/99-eth-validator.conf <<'EOF'
+PasswordAuthentication no
+PermitRootLogin no
+EOF
+  systemctl reload sshd 2>/dev/null || true
+fi
+
+# Clock skew is one of the four alerts this module ships. Make sure the host
+# actually has a time source before the alert has to tell you it does not.
+systemctl enable --now chronyd 2>/dev/null || systemctl enable --now systemd-timesyncd 2>/dev/null || true
+
+echo "beacon host prepared for ${network} (${execution_client} + ${consensus_client})"

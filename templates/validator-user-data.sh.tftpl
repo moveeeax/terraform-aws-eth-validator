@@ -1,0 +1,110 @@
+#!/usr/bin/env bash
+# Rendered by terraform-aws-eth-validator. Do not edit on the host.
+#
+# This host holds the signing keys. It downloads no client binaries and has no
+# AWS permissions beyond Session Manager: keys arrive here once, by hand, as
+# part of a written procedure.
+set -euo pipefail
+
+install -d -m 0755 /etc/eth-validator
+install -d -m 0750 /var/lib/eth/validator
+install -d -m 0700 ${keys_dir}
+
+if ! id -u ethvalidator >/dev/null 2>&1; then
+  useradd --system --shell /usr/sbin/nologin --home-dir /var/lib/eth/validator ethvalidator
+fi
+chown -R ethvalidator:ethvalidator /var/lib/eth/validator
+chmod 0700 ${keys_dir}
+
+cat >/etc/eth-validator/validator.env <<'EOF'
+ETH_NETWORK=${network}
+CONSENSUS_CLIENT=${consensus_client}
+CONSENSUS_CLIENT_VERSION=${client_version}
+BEACON_ENDPOINT=${beacon_endpoint}
+FEE_RECIPIENT=${fee_recipient}
+GRAFFITI=${graffiti}
+DOPPELGANGER_PROTECTION=${doppelganger_protection}
+VALIDATOR_METRICS_PORT=${metrics_port}
+KEYS_DIR=${keys_dir}
+SLASHING_PROTECTION_FILE=${protection_file}
+GENESIS_VALIDATORS_ROOT=${genesis_validators_root}
+EOF
+chmod 0640 /etc/eth-validator/validator.env
+chown root:ethvalidator /etc/eth-validator/validator.env
+
+%{ if slashguard_url != "" ~}
+# Optional: fetch the preflight binary the caller pointed us at.
+curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
+  -o /usr/local/bin/slashguard "${slashguard_url}"
+chmod 0755 /usr/local/bin/slashguard
+%{ endif ~}
+
+# --- the unit ----------------------------------------------------------------
+# ExecStartPre is the point of this file. systemd refuses to start the service
+# when a Pre command exits non-zero, so a slashing-protection export that does
+# not cover every key on this host, or that came from another chain, stops the
+# validator client from ever signing. Downtime is the intended outcome.
+cat >/etc/systemd/system/eth-validator.service <<'EOF'
+[Unit]
+Description=Ethereum validator client (${consensus_client}, ${network})
+Wants=network-online.target
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=ethvalidator
+Group=ethvalidator
+EnvironmentFile=/etc/eth-validator/validator.env
+%{ if enable_preflight ~}
+ExecStartPre=/usr/local/bin/slashguard \
+  --interchange ${protection_file} \
+  --keystores ${keys_dir} \
+  --genesis-validators-root ${genesis_validators_root} \
+  --fail-on high
+%{ endif ~}
+ExecStart=/usr/local/bin/eth-validator-start
+Restart=on-failure
+RestartSec=30
+
+# The signing host does nothing but sign.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/eth/validator
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+LockPersonality=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target
+EOF
+chmod 0644 /etc/systemd/system/eth-validator.service
+
+# The wrapper is where the client-specific flags live. It is installed by
+# configuration management alongside the pinned binary, not by this template:
+# every client spells doppelganger protection differently and baking one
+# client's flag syntax into a Terraform module ages badly.
+if [ ! -x /usr/local/bin/eth-validator-start ]; then
+  cat >/usr/local/bin/eth-validator-start <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+echo "eth-validator-start has not been installed on this host." >&2
+echo "Install the pinned ${consensus_client} binary and a start wrapper," >&2
+echo "then: systemctl restart eth-validator" >&2
+exit 78   # EX_CONFIG
+EOF
+  chmod 0755 /usr/local/bin/eth-validator-start
+fi
+
+systemctl daemon-reload
+# Deliberately not started here. A validator client that starts itself on first
+# boot, before anybody has confirmed which keys are on the host and whether the
+# instance it replaces is stopped, is the whole problem.
+systemctl enable eth-validator.service
+
+echo "validator host prepared for ${network}; start it by hand after the restore checklist"
