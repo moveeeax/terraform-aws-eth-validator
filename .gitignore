@@ -1,0 +1,37 @@
+# Go
+/slashguard
+/dist/
+*.test
+*.out
+coverage.txt
+
+# Terraform
+.terraform/
+.terraform.tfstate.lock.info
+*.tfstate
+*.tfstate.*
+crash.log
+crash.*.log
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+
+# Anything that could carry real values
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+.env
+
+# Validator material must never be in a repository
+*.keystore
+keystore-*.json
+!testdata/keystores/**/keystore-*.json
+slashing-protection*.json
+!testdata/interchange/*.json
+
+# macOS
+.DS_Store
+.terraform.lock.hcl
