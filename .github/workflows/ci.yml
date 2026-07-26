@@ -1,0 +1,164 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  slashguard:
+    name: slashguard (Go)
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor declared in go.mod plus whatever is current, so toolchain
+        # drift surfaces here and not on somebody's validator host.
+        go-version: ["1.24", "stable"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: ${{ matrix.go-version }}
+
+      - name: Verify formatting
+        run: test -z "$(gofmt -l .)"
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race ./...
+
+      - name: Build
+        run: go build -ldflags "-X main.version=ci-${GITHUB_SHA}" -o /tmp/slashguard ./cmd/slashguard
+
+      # The exit code is the contract: a restore procedure gates on it.
+      - name: A clean export exits 0
+        run: |
+          /tmp/slashguard \
+            --interchange testdata/interchange/clean.json \
+            --keystores testdata/keystores/clean \
+            --genesis-validators-root 0x415f7d28a5d66b012547d7991089127689f11afa0b6792a080a000a15bbd0352 \
+            --current-epoch 120004
+
+      - name: A key with no protection record exits 1
+        run: |
+          if /tmp/slashguard \
+            --interchange testdata/interchange/clean.json \
+            --keystores testdata/keystores/extra \
+            --genesis-validators-root 0x415f7d28a5d66b012547d7991089127689f11afa0b6792a080a000a15bbd0352 \
+            --current-epoch 120004; then
+            echo "expected a non-zero exit for an uncovered keystore" >&2
+            exit 1
+          fi
+
+      - name: An export from another chain exits 1
+        run: |
+          if /tmp/slashguard \
+            --interchange testdata/interchange/wrong-network.json \
+            --keystores testdata/keystores/clean \
+            --genesis-validators-root 0x415f7d28a5d66b012547d7991089127689f11afa0b6792a080a000a15bbd0352; then
+            echo "expected a non-zero exit for a cross-network export" >&2
+            exit 1
+          fi
+
+      - name: A missing input exits 2, not 1
+        run: |
+          rc=0
+          /tmp/slashguard --interchange testdata/interchange/does-not-exist.json || rc=$?
+          if [ "$rc" != "2" ]; then
+            echo "expected exit 2 for an unreadable file, got $rc" >&2
+            exit 1
+          fi
+
+      - name: JSON output is machine-readable
+        run: |
+          /tmp/slashguard \
+            --interchange testdata/interchange/duplicate-pubkey.json \
+            --keystores testdata/keystores/clean \
+            --format json > /tmp/out.json || true
+          python3 -c "import json; d=json.load(open('/tmp/out.json')); assert d['blocked'] is True; assert any(f['rule']=='SP005' for f in d['findings'])"
+
+      - name: Findings go to stdout, diagnostics to stderr
+        run: |
+          /tmp/slashguard --interchange testdata/interchange/clean.json 2>/dev/null | grep -q "slashguard"
+          /tmp/slashguard --interchange /nope.json 2>&1 >/dev/null | grep -q "error:"
+
+  module:
+    name: terraform module
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor declared in versions.tf plus whatever is current.
+        terraform_version: ["1.9.8", "latest"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ matrix.terraform_version }}
+          terraform_wrapper: false
+
+      - name: Formatting
+        run: terraform fmt -check -recursive
+
+      - name: Init (no backend, no credentials)
+        run: terraform init -backend=false -input=false
+
+      - name: Validate
+        run: terraform validate
+
+      # The whole suite runs against mock_provider "aws", so it needs no
+      # credentials and costs nothing.
+      - name: Test
+        run: terraform test
+
+      - name: Validate the example
+        working-directory: examples/holesky
+        run: |
+          terraform init -backend=false -input=false
+          terraform validate
+
+  lint:
+    name: tflint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - run: tflint --init
+
+      - run: tflint --recursive --format compact
+
+  monitoring:
+    name: prometheus rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install promtool
+        env:
+          # Authenticated so the release lookup is not rate-limited.
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
+            https://api.github.com/repos/prometheus/prometheus/releases/latest \
+            | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"].lstrip("v"))')"
+          curl -fsSL -o /tmp/prom.tar.gz \
+            "https://github.com/prometheus/prometheus/releases/download/v${version}/prometheus-${version}.linux-amd64.tar.gz"
+          tar -xzf /tmp/prom.tar.gz -C /tmp
+          sudo install "/tmp/prometheus-${version}.linux-amd64/promtool" /usr/local/bin/promtool
+
+      - name: Check the alert rules
+        run: promtool check rules monitoring/prometheus/alerts.yml
