@@ -20,7 +20,7 @@ jobs:
         # drift surfaces here and not on somebody's validator host.
         go-version: ["1.24", "stable"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: actions/setup-go@v5
         with:
@@ -99,7 +99,7 @@ jobs:
         # The floor declared in versions.tf plus whatever is current.
         terraform_version: ["1.9.8", "latest"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: hashicorp/setup-terraform@v3
         with:
@@ -130,7 +130,7 @@ jobs:
     name: tflint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - uses: terraform-linters/setup-tflint@v4
         with:
@@ -144,7 +144,7 @@ jobs:
     name: prometheus rules
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install promtool
         env:
