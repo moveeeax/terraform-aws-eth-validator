@@ -1,0 +1,17 @@
+# Copy to terraform.tfvars and replace every value. All placeholders.
+
+region              = "eu-central-1"
+vpc_id              = "vpc-REPLACE_ME"
+beacon_subnet_id    = "subnet-REPLACE_ME_PUBLIC"
+validator_subnet_id = "subnet-REPLACE_ME_PRIVATE"
+
+# Pin these. Resolve them once, write them down, change them deliberately.
+beacon_ami_id    = "ami-REPLACE_ME"
+validator_ami_id = "ami-REPLACE_ME"
+
+fee_recipient = "0x000000000000000000000000000000000000dEaD"
+
+# curl -s "$BEACON/eth/v1/beacon/genesis" | jq -r .data.genesis_validators_root
+genesis_validators_root = "0xREPLACE_ME_64_HEX_CHARACTERS_FROM_YOUR_OWN_BEACON_NODE"
+
+monitoring_cidr_blocks = ["10.20.0.0/16"]
