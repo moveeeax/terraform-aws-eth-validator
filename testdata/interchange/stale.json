@@ -1,0 +1,35 @@
+{
+  "metadata": {
+    "interchange_format_version": "5",
+    "genesis_validators_root": "0x415f7d28a5d66b012547d7991089127689f11afa0b6792a080a000a15bbd0352"
+  },
+  "data": [
+    {
+      "pubkey": "0x23eb26705c28e246e8765718564e748ee0c2239a60a5451516ff712236fa5bb008a07d3318b60cfd0d60ba8c09dafb58",
+      "signed_blocks": [
+        {
+          "slot": "3700000",
+          "signing_root": "0x1d550902a9edc59ba5e1d7938d0fb6cf6da4e695623c8e5bdf8e093a61749496"
+        }
+      ],
+      "signed_attestations": [
+        {
+          "source_epoch": "110000",
+          "target_epoch": "110001",
+          "signing_root": "0xbc8c48c0a866025caf1f47bfa221ddfb86abaef7035c3630605c96ef57790c8c"
+        }
+      ]
+    },
+    {
+      "pubkey": "0x40736adfe0bee6ac90bb96e9e44d15dace909941ac6f9ae8e0b84abb1ef7fac9154d506f52fde3f6922ef77e71638120",
+      "signed_blocks": [],
+      "signed_attestations": [
+        {
+          "source_epoch": "110000",
+          "target_epoch": "110001",
+          "signing_root": "0xbc8c48c0a866025caf1f47bfa221ddfb86abaef7035c3630605c96ef57790c8c"
+        }
+      ]
+    }
+  ]
+}
