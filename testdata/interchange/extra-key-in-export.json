@@ -1,0 +1,80 @@
+{
+  "metadata": {
+    "interchange_format_version": "5",
+    "genesis_validators_root": "0x415f7d28a5d66b012547d7991089127689f11afa0b6792a080a000a15bbd0352"
+  },
+  "data": [
+    {
+      "pubkey": "0x23eb26705c28e246e8765718564e748ee0c2239a60a5451516ff712236fa5bb008a07d3318b60cfd0d60ba8c09dafb58",
+      "signed_blocks": [
+        {
+          "slot": "3840100",
+          "signing_root": "0x786e2494e33958ddca6c3ad6f244e6d3f7132e4c279fb8395314c8172b29a1c9"
+        },
+        {
+          "slot": "3840233",
+          "signing_root": "0x857de7c603a7d6edc409ce6adecff4db8eeaa96005921b4cab7e32e9550b1388"
+        }
+      ],
+      "signed_attestations": [
+        {
+          "source_epoch": "120000",
+          "target_epoch": "120001",
+          "signing_root": "0x4bf7802279ffe293aaa561f9149cffda5b5904ef1001532a4d59e5ddef85af82"
+        },
+        {
+          "source_epoch": "120001",
+          "target_epoch": "120002",
+          "signing_root": "0x2e7e48e29bcd0df8c57f9003203a88624eb22cd905ca3ea3936a7ba8b964c9f2"
+        },
+        {
+          "source_epoch": "120002",
+          "target_epoch": "120003",
+          "signing_root": "0x26dee2195925f1a5618a17d3147da6efec9427afa0d4a09f7508f4c150c7a8ac"
+        }
+      ]
+    },
+    {
+      "pubkey": "0x40736adfe0bee6ac90bb96e9e44d15dace909941ac6f9ae8e0b84abb1ef7fac9154d506f52fde3f6922ef77e71638120",
+      "signed_blocks": [],
+      "signed_attestations": [
+        {
+          "source_epoch": "119998",
+          "target_epoch": "119999",
+          "signing_root": "0x0e76216f59db4155f6e1d8d3627f9437c86f13c878d085c8a95ec629e34b60a4"
+        },
+        {
+          "source_epoch": "119999",
+          "target_epoch": "120000",
+          "signing_root": "0x7c32b84403c81373200d8e452796b86a6b59ec5464ca3ef289bf775ba954a4c8"
+        },
+        {
+          "source_epoch": "120002",
+          "target_epoch": "120003",
+          "signing_root": "0x26dee2195925f1a5618a17d3147da6efec9427afa0d4a09f7508f4c150c7a8ac"
+        }
+      ]
+    },
+    {
+      "pubkey": "0xdfbd85c4e86a4c99b58f44b2aad009e1af35888082e270dc6b5c0834e5445d3d11b7df5474c58c4997a5df323c9024eb",
+      "signed_blocks": [
+        {
+          "slot": "3840301",
+          "signing_root": "0xdb0a229be1d6d17dae43bafcfbcfae8b1d6ff2432ba047f55da1a7f832d0acbb"
+        }
+      ],
+      "signed_attestations": [
+        {
+          "source_epoch": "120001",
+          "target_epoch": "120002",
+          "signing_root": "0x2e7e48e29bcd0df8c57f9003203a88624eb22cd905ca3ea3936a7ba8b964c9f2"
+        },
+        {
+          "source_epoch": "120002",
+          "target_epoch": "120003",
+          "signing_root": "0x26dee2195925f1a5618a17d3147da6efec9427afa0d4a09f7508f4c150c7a8ac"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "interchange_format_version": "4",
+    "genesis_validators_root": "0x415f7d28a5d66b012547d7991089127689f11afa0b6792a080a000a15bbd0352"
+  },
+  "data": [
+    {
+      "pubkey": "0x23eb26705c28e246e8765718564e748ee0c2239a60a5451516ff712236fa5bb008a07d3318b60cfd0d60ba8c09dafb58",
+      "signed_blocks": [],
+      "signed_attestations": [
+        {
+          "source_epoch": "120000",
+          "target_epoch": "120001",
+          "signing_root": "0x4bf7802279ffe293aaa561f9149cffda5b5904ef1001532a4d59e5ddef85af82"
+        },
+        {
+          "source_epoch": "120001",
+          "target_epoch": "120002",
+          "signing_root": "0x2e7e48e29bcd0df8c57f9003203a88624eb22cd905ca3ea3936a7ba8b964c9f2"
+        },
+        {
+          "source_epoch": "120002",
+          "target_epoch": "120003",
+          "signing_root": "0x26dee2195925f1a5618a17d3147da6efec9427afa0d4a09f7508f4c150c7a8ac"
+        }
+      ]
+    }
+  ]
+}
