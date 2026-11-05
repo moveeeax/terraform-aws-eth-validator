@@ -122,6 +122,6 @@ step 1 and find the other one.
 
 ## Rehearsing this
 
-Run the whole procedure on Holesky or Hoodi, end to end, including step 4 with
+Run the whole procedure on Hoodi, end to end, including step 4 with
 a deliberately incomplete export so you see the block happen. A restore
 procedure that has only ever been read is not a tested restore procedure.

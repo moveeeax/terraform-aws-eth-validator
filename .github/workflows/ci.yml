@@ -16,13 +16,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The floor declared in go.mod plus whatever is current, so toolchain
+        # The floor declared in go.mod plus the newest Go release, so toolchain
         # drift surfaces here and not on somebody's validator host.
-        go-version: ["1.24", "stable"]
+        go-version: ["1.26", "1.27"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ matrix.go-version }}
 
@@ -99,9 +99,9 @@ jobs:
         # The floor declared in versions.tf plus whatever is current.
         terraform_version: ["1.9.8", "latest"]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: hashicorp/setup-terraform@v3
+      - uses: hashicorp/setup-terraform@v4
         with:
           terraform_version: ${{ matrix.terraform_version }}
           terraform_wrapper: false
@@ -121,7 +121,7 @@ jobs:
         run: terraform test
 
       - name: Validate the example
-        working-directory: examples/holesky
+        working-directory: examples/hoodi
         run: |
           terraform init -backend=false -input=false
           terraform validate
@@ -130,11 +130,11 @@ jobs:
     name: tflint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: terraform-linters/setup-tflint@v5
+      - uses: terraform-linters/setup-tflint@v6
         with:
-          tflint_version: latest
+          tflint_version: v0.65.0
 
       - run: tflint --init
 
@@ -144,19 +144,20 @@ jobs:
     name: prometheus rules
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install promtool
         env:
-          # Authenticated so the release lookup is not rate-limited.
-          GH_TOKEN: ${{ github.token }}
+          # Pinned so a new Prometheus release cannot change what this job
+          # checks. Bump both values together, from the release's sha256sums.txt.
+          PROMETHEUS_VERSION: "3.15.1"
+          PROMETHEUS_SHA256: "6a726885328ad9efebbf36e876ce2fb6225468a71fd1e7ce3ba666d5f4d97a84"
         run: |
           set -euo pipefail
-          version="$(curl -fsSL -H "Authorization: Bearer ${GH_TOKEN}" \
-            https://api.github.com/repos/prometheus/prometheus/releases/latest \
-            | python3 -c 'import json,sys; print(json.load(sys.stdin)["tag_name"].lstrip("v"))')"
+          version="${PROMETHEUS_VERSION}"
           curl -fsSL -o /tmp/prom.tar.gz \
             "https://github.com/prometheus/prometheus/releases/download/v${version}/prometheus-${version}.linux-amd64.tar.gz"
+          echo "${PROMETHEUS_SHA256}  /tmp/prom.tar.gz" | sha256sum -c -
           tar -xzf /tmp/prom.tar.gz -C /tmp
           sudo install "/tmp/prometheus-${version}.linux-amd64/promtool" /usr/local/bin/promtool
 
