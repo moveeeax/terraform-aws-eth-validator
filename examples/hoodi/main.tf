@@ -1,4 +1,4 @@
-# A single Holesky validator pair in an existing VPC.
+# A single Hoodi validator pair in an existing VPC.
 #
 # Nothing in this example creates a VPC, a subnet or a NAT gateway: the module
 # is meant to drop into networking you already own and can reason about.
@@ -29,8 +29,8 @@ provider "aws" {
 module "validator" {
   source = "../.."
 
-  name    = "holesky-01"
-  network = "holesky"
+  name    = "hoodi-01"
+  network = "hoodi"
 
   vpc_id              = var.vpc_id
   beacon_subnet_id    = var.beacon_subnet_id
@@ -48,7 +48,7 @@ module "validator" {
   consensus_client_version = "REPLACE_WITH_YOUR_PINNED_VERSION"
 
   fee_recipient = var.fee_recipient
-  graffiti      = "holesky-01"
+  graffiti      = "hoodi-01"
 
   # Read this from the beacon node that will serve this validator:
   #   curl -s "$BEACON/eth/v1/beacon/genesis" | jq -r .data.genesis_validators_root

@@ -173,8 +173,8 @@ checksum-verified binaries is your configuration management's job.
 module "validator" {
   source = "github.com/moveeeax/terraform-aws-eth-validator"
 
-  name    = "holesky-01"
-  network = "holesky"
+  name    = "hoodi-01"
+  network = "hoodi"
 
   vpc_id              = "vpc-0123456789abcdef0"
   beacon_subnet_id    = "subnet-0123456789abcdef0" # public
@@ -192,7 +192,7 @@ module "validator" {
 }
 ```
 
-A complete example is in [`examples/holesky`](examples/holesky).
+A complete example is in [`examples/hoodi`](examples/hoodi).
 
 ### The safety output
 
@@ -275,3 +275,7 @@ This is a v1 reference deployment. It is deliberately narrow:
 Not yet done: an end-to-end `terraform apply` against a real AWS account and a
 live testnet validator. Everything in this repository is verified by offline
 tests; the apply path is not yet exercised in CI.
+
+## License
+
+MIT, see [LICENSE](LICENSE).

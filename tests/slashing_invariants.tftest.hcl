@@ -6,8 +6,8 @@
 mock_provider "aws" {}
 
 variables {
-  name                = "holesky-01"
-  network             = "holesky"
+  name                = "hoodi-01"
+  network             = "hoodi"
   vpc_id              = "vpc-0123456789abcdef0"
   beacon_subnet_id    = "subnet-0123456789abcdef0"
   validator_subnet_id = "subnet-0abcdef1234567890"

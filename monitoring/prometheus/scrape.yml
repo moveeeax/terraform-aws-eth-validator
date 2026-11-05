@@ -20,7 +20,7 @@ scrape_configs:
     static_configs:
       - targets: ["REPLACE_ME_BEACON_PRIVATE_IP:6060"]
         labels:
-          eth_network: holesky
+          eth_network: hoodi
           eth_role: execution
 
   - job_name: eth-beacon
@@ -28,7 +28,7 @@ scrape_configs:
     static_configs:
       - targets: ["REPLACE_ME_BEACON_PRIVATE_IP:5054"]
         labels:
-          eth_network: holesky
+          eth_network: hoodi
           eth_role: beacon
 
   - job_name: eth-validator
@@ -36,7 +36,7 @@ scrape_configs:
     static_configs:
       - targets: ["REPLACE_ME_VALIDATOR_PRIVATE_IP:5064"]
         labels:
-          eth_network: holesky
+          eth_network: hoodi
           eth_role: validator
 
   - job_name: node
@@ -45,4 +45,4 @@ scrape_configs:
           - "REPLACE_ME_BEACON_PRIVATE_IP:9100"
           - "REPLACE_ME_VALIDATOR_PRIVATE_IP:9100"
         labels:
-          eth_network: holesky
+          eth_network: hoodi
