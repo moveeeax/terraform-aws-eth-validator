@@ -1,0 +1,61 @@
+#!/usr/bin/env bash
+# Rendered by terraform-aws-eth-validator. Do not edit on the host.
+#
+# slashguard-preflight is the ExecStartPre of eth-validator.service. It reads
+# the head epoch from the beacon node this validator will use and hands it to
+# slashguard, so the staleness checks (SP008, SP012) run on every start rather
+# than only when somebody remembers --current-epoch.
+#
+# slashguard itself opens no sockets; this wrapper is the only part of the
+# preflight that talks to the network. Every way of not getting a head epoch
+# exits 2, and a non-zero ExecStartPre keeps the validator client stopped.
+set -euo pipefail
+
+beacon='${beacon_endpoint}'
+
+fail() {
+  echo "slashguard-preflight: $*" >&2
+  echo "slashguard-preflight: refusing to start the validator without a trustworthy head epoch" >&2
+  exit 2
+}
+
+get() {
+  curl --fail --silent --show-error --max-time 10 --connect-timeout 5 \
+    --proto '=http,https' -H 'Accept: application/json' "$beacon$1"
+}
+
+# field NAME JSON prints the value of "NAME" when it occurs exactly once as a
+# decimal string, true or false. Anything else, including a second occurrence,
+# is treated as an answer this script does not understand.
+field() {
+  local matches
+  matches=$(printf '%s' "$2" | tr -d '[:space:]' | grep -oE "\"$1\":(\"[0-9]+\"|true|false)" || true)
+  [ -n "$matches" ] || return 1
+  [ "$(printf '%s\n' "$matches" | wc -l)" -eq 1 ] || return 1
+  matches=$${matches#*:}
+  printf '%s\n' "$${matches//\"/}"
+}
+
+# A node that is still syncing reports an old head. Feeding that to slashguard
+# makes a stale export look fresh, which is the one thing this check exists
+# to catch.
+# https://ethereum.github.io/beacon-APIs/#/Node/getSyncingStatus
+syncing=$(get /eth/v1/node/syncing) || fail "cannot read $beacon/eth/v1/node/syncing"
+is_syncing=$(field is_syncing "$syncing") || fail "no data.is_syncing in the /eth/v1/node/syncing response"
+[ "$is_syncing" = "false" ] || fail "the beacon node reports is_syncing=$is_syncing; its head is not the chain head"
+
+# https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockHeader
+header=$(get /eth/v1/beacon/headers/head) || fail "cannot read $beacon/eth/v1/beacon/headers/head"
+slot=$(field slot "$header") || fail "no data.header.message.slot in the /eth/v1/beacon/headers/head response"
+[ "$${#slot}" -le 18 ] || fail "head slot $slot is out of range"
+
+epoch=$((10#$slot / ${slots_per_epoch}))
+echo "slashguard-preflight: head slot $slot, epoch $epoch, from $beacon" >&2
+
+exec ${slashguard_bin} \
+  --interchange ${protection_file} \
+  --keystores ${keys_dir} \
+  --genesis-validators-root ${genesis_validators_root} \
+  --current-epoch "$epoch" \
+  --max-epoch-lag ${max_epoch_lag} \
+  --fail-on ${fail_on}

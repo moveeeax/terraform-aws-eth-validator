@@ -120,6 +120,11 @@ jobs:
       - name: Test
         run: terraform test
 
+      # Renders the ExecStartPre wrapper and runs it against stub curl and
+      # slashguard binaries: every way of not reading the head epoch exits 2.
+      - name: Preflight wrapper fails closed
+        run: bash tests/slashguard-preflight.test.sh
+
       - name: Validate the example
         working-directory: examples/hoodi
         run: |

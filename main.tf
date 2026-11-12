@@ -65,11 +65,33 @@ locals {
     chaindata_mount          = "/var/lib/eth/chaindata"
   })
 
+  validator_paths = {
+    keys_dir        = "/var/lib/eth/validator/keys"
+    protection_file = "/var/lib/eth/validator/slashing-protection.json"
+  }
+
+  beacon_endpoint = "http://${aws_instance.beacon.private_ip}:${var.beacon_api_port}"
+
+  # SLOTS_PER_EPOCH of the mainnet preset, which every network in var.network
+  # uses. A network on the minimal preset (8) would need this to change.
+  slots_per_epoch = 32
+
+  slashguard_preflight_script = templatefile("${path.module}/templates/slashguard-preflight.sh.tftpl", {
+    beacon_endpoint         = local.beacon_endpoint
+    slots_per_epoch         = local.slots_per_epoch
+    slashguard_bin          = "/usr/local/bin/slashguard"
+    keys_dir                = local.validator_paths.keys_dir
+    protection_file         = local.validator_paths.protection_file
+    genesis_validators_root = var.genesis_validators_root
+    max_epoch_lag           = var.slashguard_max_epoch_lag
+    fail_on                 = var.slashguard_fail_on
+  })
+
   validator_user_data = templatefile("${path.module}/templates/validator-user-data.sh.tftpl", {
     network                 = var.network
     consensus_client        = var.consensus_client
     client_version          = var.consensus_client_version
-    beacon_endpoint         = "http://${aws_instance.beacon.private_ip}:${var.beacon_api_port}"
+    beacon_endpoint         = local.beacon_endpoint
     fee_recipient           = var.fee_recipient
     graffiti                = var.graffiti
     doppelganger_protection = var.doppelganger_protection
@@ -77,7 +99,8 @@ locals {
     enable_preflight        = var.enable_slashguard_preflight
     genesis_validators_root = var.genesis_validators_root
     slashguard_url          = var.slashguard_url
-    keys_dir                = "/var/lib/eth/validator/keys"
-    protection_file         = "/var/lib/eth/validator/slashing-protection.json"
+    keys_dir                = local.validator_paths.keys_dir
+    protection_file         = local.validator_paths.protection_file
+    preflight_script        = chomp(local.slashguard_preflight_script)
   })
 }

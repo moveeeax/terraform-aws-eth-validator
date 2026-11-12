@@ -166,3 +166,107 @@ run "monitoring_can_be_left_off_entirely" {
     error_message = "With no monitoring CIDRs the beacon host must only have its p2p and API rules."
   }
 }
+
+# The preflight only catches a restore from an old backup if it knows the head
+# epoch. These runs pin that the unit gets it from the beacon node on every
+# start instead of relying on an operator to pass --current-epoch.
+#
+# They use command = apply because the rendered user data depends on the
+# beacon host's private IP, which is unknown at plan time. Against the mock
+# provider, apply creates nothing and needs no credentials.
+run "the_preflight_runs_with_the_head_epoch_from_the_beacon_node" {
+  command = apply
+
+  override_resource {
+    target = aws_instance.beacon
+    values = {
+      private_ip = "10.20.1.10"
+    }
+  }
+
+  assert {
+    condition     = strcontains(local.validator_user_data, "ExecStartPre=/usr/local/bin/slashguard-preflight\n")
+    error_message = "The validator unit must start through the preflight wrapper, not a bare slashguard call without a head epoch."
+  }
+
+  assert {
+    condition     = strcontains(local.validator_user_data, "cat >/usr/local/bin/slashguard-preflight <<'PREFLIGHT'")
+    error_message = "The validator user data must install the preflight wrapper."
+  }
+
+  assert {
+    condition     = strcontains(local.slashguard_preflight_script, "beacon='http://10.20.1.10:5052'")
+    error_message = "The wrapper must ask the beacon node this validator uses for the head."
+  }
+
+  assert {
+    condition     = strcontains(local.slashguard_preflight_script, "/eth/v1/beacon/headers/head") && strcontains(local.slashguard_preflight_script, "/eth/v1/node/syncing")
+    error_message = "The wrapper must read the head header and refuse a syncing beacon node."
+  }
+
+  assert {
+    condition     = strcontains(local.slashguard_preflight_script, "--current-epoch \"$epoch\"")
+    error_message = "The wrapper must pass the head epoch to slashguard, or the staleness check is skipped."
+  }
+
+  assert {
+    condition     = strcontains(local.slashguard_preflight_script, "--max-epoch-lag 4 \\") && strcontains(local.slashguard_preflight_script, "--fail-on high\n")
+    error_message = "The wrapper must pass the default lag (4) and fail-on (high) to slashguard."
+  }
+
+  assert {
+    condition     = output.slashing_safety.preflight_checks_staleness == true
+    error_message = "With the preflight on, the safety output must report that it checks staleness."
+  }
+
+  assert {
+    condition     = output.slashing_safety.slashguard_max_epoch_lag == 4 && output.slashing_safety.slashguard_fail_on == "high"
+    error_message = "The safety output must carry the preflight thresholds so a reviewer can diff them."
+  }
+}
+
+run "preflight_thresholds_reach_the_wrapper" {
+  command = apply
+
+  override_resource {
+    target = aws_instance.beacon
+    values = {
+      private_ip = "10.20.1.10"
+    }
+  }
+
+  variables {
+    slashguard_max_epoch_lag = 0
+    slashguard_fail_on       = "medium"
+  }
+
+  assert {
+    condition     = strcontains(local.slashguard_preflight_script, "--max-epoch-lag 0 \\") && strcontains(local.slashguard_preflight_script, "--fail-on medium\n")
+    error_message = "slashguard_max_epoch_lag and slashguard_fail_on must be passed through to slashguard."
+  }
+}
+
+run "without_the_preflight_nothing_claims_a_staleness_check" {
+  command = apply
+
+  override_resource {
+    target = aws_instance.beacon
+    values = {
+      private_ip = "10.20.1.10"
+    }
+  }
+
+  variables {
+    enable_slashguard_preflight = false
+  }
+
+  assert {
+    condition     = !strcontains(local.validator_user_data, "ExecStartPre=")
+    error_message = "With the preflight off, the unit must have no ExecStartPre."
+  }
+
+  assert {
+    condition     = output.slashing_safety.preflight_checks_staleness == false
+    error_message = "With the preflight off, the safety output must not claim a staleness check."
+  }
+}

@@ -128,9 +128,31 @@ variable "i_accept_the_risk_of_disabling_doppelganger_protection" {
 }
 
 variable "enable_slashguard_preflight" {
-  description = "Add an ExecStartPre to the validator unit that runs slashguard against the slashing-protection export before the client is allowed to start. If the check fails, the unit does not start."
+  description = "Add an ExecStartPre to the validator unit that reads the head epoch from the beacon host and runs slashguard against the slashing-protection export before the client is allowed to start. If the check fails, or the head epoch cannot be read, the unit does not start."
   type        = bool
   default     = true
+}
+
+variable "slashguard_max_epoch_lag" {
+  description = "How many epochs the newest attestation in the slashing-protection export may trail the beacon node's head before the preflight blocks the start (slashguard --max-epoch-lag). One epoch is 6.4 minutes."
+  type        = number
+  default     = 4
+
+  validation {
+    condition     = var.slashguard_max_epoch_lag >= 0 && var.slashguard_max_epoch_lag <= 32 && floor(var.slashguard_max_epoch_lag) == var.slashguard_max_epoch_lag
+    error_message = "slashguard_max_epoch_lag must be a whole number from 0 to 32. Past 32 epochs (about 3.4 hours) the staleness check stops catching a restore from an old backup."
+  }
+}
+
+variable "slashguard_fail_on" {
+  description = "Lowest finding severity at which the preflight blocks the start (slashguard --fail-on): info, medium or high."
+  type        = string
+  default     = "high"
+
+  validation {
+    condition     = contains(["info", "medium", "high"], var.slashguard_fail_on)
+    error_message = "slashguard_fail_on must be one of: info, medium, high. critical is refused because it lets high findings through, including a stale export (SP008) and an export dated after head (SP012)."
+  }
 }
 
 variable "slashguard_url" {

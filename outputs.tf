@@ -62,6 +62,9 @@ output "slashing_safety" {
     beacon_api_reachable_from_cidrs     = []
     validator_ingress_cidrs             = var.monitoring_cidr_blocks
     slashguard_preflight                = var.enable_slashguard_preflight
+    preflight_checks_staleness          = var.enable_slashguard_preflight
+    slashguard_max_epoch_lag            = var.slashguard_max_epoch_lag
+    slashguard_fail_on                  = var.slashguard_fail_on
     termination_protection              = var.enable_termination_protection
     imdsv2_required                     = true
     volumes_encrypted                   = true

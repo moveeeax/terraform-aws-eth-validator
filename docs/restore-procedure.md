@@ -23,8 +23,12 @@ Read the whole thing before starting. Do not improvise the order.
 
   ```
   curl -s "$BEACON/eth/v1/beacon/headers/head" \
-    | jq -r '.data[0].header.message.slot | tonumber / 32 | floor'
+    | jq -r '.data.header.message.slot | tonumber / 32 | floor'
   ```
+
+  The unit's `ExecStartPre` (`/usr/local/bin/slashguard-preflight`) reads the
+  same value on every start, so you need it here only for the manual run in
+  step 4.
 
 - `slashguard` on the new host at `/usr/local/bin/slashguard`.
 
@@ -89,6 +93,13 @@ common blocking findings during a restore are:
 Keep the Markdown output. It is the record that the restore was checked, and
 it is the first thing anyone will ask for if something goes wrong later.
 
+The same checks run again, unattended, when the unit starts in step 6:
+`slashguard-preflight` reads the head from the beacon node and passes
+`--current-epoch`, `--max-epoch-lag` (`slashguard_max_epoch_lag`, default 4)
+and `--fail-on` (`slashguard_fail_on`, default `high`). If the beacon node is
+unreachable, still syncing, or answers with something the wrapper cannot
+parse, it exits 2 and the unit does not start.
+
 ## 5. Import the protection database, then the keys
 
 ```
@@ -112,6 +123,28 @@ finding out that the old host is still signing before you join it.
 
 If doppelganger protection triggers, stop. You have two signers. Go back to
 step 1 and find the other one.
+
+If the unit does not start, `journalctl -u eth-validator` shows why.
+`slashguard-preflight:` lines mean the head epoch could not be read; fix the
+beacon node, do not bypass the check. An SP008 finding means the export is
+older than the lag allows: go back to step 2.
+
+## Restarting a host that is already signing
+
+The preflight runs on every start, not only after a restore, and the file at
+`/var/lib/eth/validator/slashing-protection.json` does not update itself while
+the client runs. A restart more than `slashguard_max_epoch_lag` epochs after
+that file was written is blocked by SP008. Before a planned restart, stop the
+client and write a fresh export from its own database to that path, then
+start it:
+
+```
+systemctl stop eth-validator
+lighthouse account validator slashing-protection export \
+  /var/lib/eth/validator/slashing-protection.json
+chown ethvalidator:ethvalidator /var/lib/eth/validator/slashing-protection.json
+systemctl start eth-validator
+```
 
 ## 7. Confirm and record
 
