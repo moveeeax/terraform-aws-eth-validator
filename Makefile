@@ -18,16 +18,18 @@ test-tf: ## Terraform module tests against a mocked provider (no AWS credentials
 	terraform init -backend=false -input=false
 	terraform validate
 	terraform test
+	bash tests/slashguard-preflight.test.sh
 
 fmt: ## Format Go and Terraform
 	gofmt -w .
 	terraform fmt -recursive
 
-lint: ## Vet Go, check Terraform formatting, run tflint
+lint: ## Vet Go, check Terraform formatting, run tflint and shellcheck
 	test -z "$$(gofmt -l .)"
 	go vet ./...
 	terraform fmt -check -recursive
 	tflint --recursive
+	shellcheck tests/*.sh
 
 install: ## Install slashguard into GOBIN
 	go install -ldflags "-X main.version=$(VERSION)" ./cmd/slashguard

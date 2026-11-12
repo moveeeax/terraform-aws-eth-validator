@@ -116,3 +116,53 @@ run "a_non_https_slashguard_url_is_rejected" {
 
   expect_failures = [var.slashguard_url]
 }
+
+run "a_negative_epoch_lag_is_rejected" {
+  command = plan
+
+  variables {
+    slashguard_max_epoch_lag = -1
+  }
+
+  expect_failures = [var.slashguard_max_epoch_lag]
+}
+
+run "a_fractional_epoch_lag_is_rejected" {
+  command = plan
+
+  variables {
+    slashguard_max_epoch_lag = 2.5
+  }
+
+  expect_failures = [var.slashguard_max_epoch_lag]
+}
+
+run "an_epoch_lag_that_lets_a_day_old_backup_through_is_rejected" {
+  command = plan
+
+  variables {
+    slashguard_max_epoch_lag = 225
+  }
+
+  expect_failures = [var.slashguard_max_epoch_lag]
+}
+
+run "fail_on_critical_is_rejected" {
+  command = plan
+
+  variables {
+    slashguard_fail_on = "critical"
+  }
+
+  expect_failures = [var.slashguard_fail_on]
+}
+
+run "an_unknown_fail_on_severity_is_rejected" {
+  command = plan
+
+  variables {
+    slashguard_fail_on = "low"
+  }
+
+  expect_failures = [var.slashguard_fail_on]
+}

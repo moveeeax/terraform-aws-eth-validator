@@ -39,11 +39,23 @@ curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 \
 chmod 0755 /usr/local/bin/slashguard
 %{ endif ~}
 
+%{ if enable_preflight ~}
+# The preflight wrapper reads the head epoch from the beacon node and runs
+# slashguard with it. It exits 2 when the head cannot be read, so an
+# unreachable or still-syncing beacon node keeps the validator stopped.
+cat >/usr/local/bin/slashguard-preflight <<'PREFLIGHT'
+${preflight_script}
+PREFLIGHT
+chmod 0755 /usr/local/bin/slashguard-preflight
+%{ endif ~}
+
 # --- the unit ----------------------------------------------------------------
 # ExecStartPre is the point of this file. systemd refuses to start the service
 # when a Pre command exits non-zero, so a slashing-protection export that does
-# not cover every key on this host, or that came from another chain, stops the
-# validator client from ever signing. Downtime is the intended outcome.
+# not cover every key on this host, that came from another chain, or that is
+# older than the head epoch allows, stops the validator client from ever
+# signing. So does a beacon node that cannot say what the head epoch is.
+# Downtime is the intended outcome.
 cat >/etc/systemd/system/eth-validator.service <<'EOF'
 [Unit]
 Description=Ethereum validator client (${consensus_client}, ${network})
@@ -57,11 +69,7 @@ User=ethvalidator
 Group=ethvalidator
 EnvironmentFile=/etc/eth-validator/validator.env
 %{ if enable_preflight ~}
-ExecStartPre=/usr/local/bin/slashguard \
-  --interchange ${protection_file} \
-  --keystores ${keys_dir} \
-  --genesis-validators-root ${genesis_validators_root} \
-  --fail-on high
+ExecStartPre=/usr/local/bin/slashguard-preflight
 %{ endif ~}
 ExecStart=/usr/local/bin/eth-validator-start
 Restart=on-failure

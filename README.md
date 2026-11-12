@@ -159,7 +159,9 @@ warning, and nobody gets out of bed for a lint warning.
 - An IAM role for the validator host that grants nothing beyond SSM. There is
   no cloud path to the keys, so an attacker holding the instance role cannot
   reconstruct the key set on a second machine.
-- A systemd unit whose `ExecStartPre` is `slashguard`.
+- A systemd unit whose `ExecStartPre` is `slashguard-preflight`: a wrapper
+  that reads the head epoch from the beacon node and runs `slashguard` with
+  it. See [The preflight](#the-preflight).
 
 It does **not** download client binaries. Fetching an execution client at first
 boot, unverified, onto a host that will hold consensus state, is a supply-chain
@@ -210,6 +212,9 @@ it is known at plan time:
   beacon_api_reachable_from_cidrs     = []
   validator_ingress_cidrs             = ["10.20.0.0/16"]
   slashguard_preflight                = true
+  preflight_checks_staleness          = true
+  slashguard_max_epoch_lag            = 4
+  slashguard_fail_on                  = "high"
   termination_protection              = true
   imdsv2_required                     = true
   volumes_encrypted                   = true
@@ -219,6 +224,38 @@ it is known at plan time:
 
 Diff it in a pull request and the safety posture of a change is visible before
 anyone applies it. `terraform test` asserts against these same values.
+
+### The preflight
+
+With `enable_slashguard_preflight = true` (the default) the validator host
+gets `/usr/local/bin/slashguard-preflight` as the unit's `ExecStartPre`. On
+every start it:
+
+1. reads `GET /eth/v1/node/syncing` from the beacon host and stops unless
+   `data.is_syncing` is `false`. A syncing node reports an old head, and an
+   old head makes a stale export look fresh;
+2. reads `GET /eth/v1/beacon/headers/head` and takes `data.header.message.slot`
+   ([beacon-APIs `getBlockHeader`](https://ethereum.github.io/beacon-APIs/#/Beacon/getBlockHeader));
+3. runs `slashguard` with `--current-epoch slot/32`, `--max-epoch-lag` and
+   `--fail-on`.
+
+If either request fails, times out (10 s) or returns something other than the
+spec's shape, the wrapper exits 2 and systemd does not start the client.
+`slashguard` itself still opens no sockets.
+
+| Input | Default | Meaning |
+|---|---|---|
+| `slashguard_max_epoch_lag` | `4` | epochs the export may trail head; 0 to 32 |
+| `slashguard_fail_on` | `"high"` | `info`, `medium` or `high` |
+
+`slashguard_fail_on = "critical"` is refused: it would let SP008 (stale export)
+and SP012 (export dated after head) through, which is the gap this wrapper
+closes.
+
+Because the check runs on every start, a restart long after the export was
+written is blocked by SP008 until a fresh export is in place. The
+[restore procedure](docs/restore-procedure.md#restarting-a-host-that-is-already-signing)
+has the steps.
 
 ### Guard rails in the variables
 
@@ -231,6 +268,8 @@ Some configurations are refused rather than warned about:
 - `enable_slashguard_preflight = true` requires `genesis_validators_root`. A
   preflight that cannot tell which chain an export came from is not a
   preflight.
+- `slashguard_max_epoch_lag` is capped at 32 epochs (about 3.4 hours), and
+  `slashguard_fail_on` cannot be `critical`.
 - `fee_recipient` must be a real 20-byte address; `graffiti` must fit in 32
   bytes; `chaindata_volume_size_gb` has a floor.
 
@@ -255,8 +294,9 @@ incomplete export, so you have seen the block happen.
 ```
 make test        # Go unit tests + terraform test
 make test-go     # Go only
-make test-tf     # terraform validate + terraform test, mocked provider
-make lint        # gofmt, go vet, terraform fmt, tflint
+make test-tf     # terraform validate + terraform test, mocked provider,
+                 # and the preflight wrapper against stub curl/slashguard
+make lint        # gofmt, go vet, terraform fmt, tflint, shellcheck
 ```
 
 `terraform test` uses `mock_provider "aws"`. It needs the AWS provider from the
